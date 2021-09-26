@@ -1,9 +1,8 @@
-import sys
 import math
-import statistics
+import random
 import numpy as np
 
-N_CLASSES = 20
+N_CLASSES = 10
 N_AMOSTRAS = 100
 
 TEMPO_ENTRE_CHEGADA = 5
@@ -13,33 +12,36 @@ TAMANHO_MAX_FILA = 10
 def gera_amostras_exponencial(tam, param_lambda):
     amostras = []
     for i in range(0, tam):
-        amostras[i] = np.random.exponential(param_lambda)
+        amostras.append(math.floor(np.random.exponential(param_lambda)))
     return amostras
 
 def gera_valor_aleatorio(p_classe, classes):
     n_classes = len(p_classe)
-    p = uniform(0, 1)
-    for i in range(0, n_classes):
+    p = random.uniform(0, 1)
+    for i in range(0, n_classes):   
         p -= p_classe[i]
         if p <= 0:
-            return statistics.mean(classes[i])
-    return statistics.mean(classes[-1])
+            return random.choice(classes[i])
+    return random.choice(classes[-1])
 
 # Gera funcao de distribuicao acumulada apartir das amostras dadas
 def gera_funcao_distribuicao_acumulada(amostras = [], n_classes = 1):
     n_amostras = len(amostras)
-    amostras = amostras.sort()
-    
-    valor_max = amostras[-1]
-    valor_min = amostras[0]
+
+    valor_max = max(amostras)
+    valor_min = min(amostras)
     amplitude = valor_max - valor_min
     intervalo_classe = amplitude / n_classes
 
-    classes = [[] for i in range(0, n_classes)]
+    classes = [[0] for i in range(0, n_classes)]
     p_classe = [0 for i in range(0, n_classes)]
-
+    indice = 0
+    
     for amostra in amostras:
         indice = math.floor(amostra / intervalo_classe)
+        if(amostra == valor_max):
+            indice = n_classes - 1
+
         classes[indice].append(amostra)
         p_classe[indice] += (1 / n_amostras)
 
@@ -65,62 +67,97 @@ def simulacao(tempo_maximo, tec_deterministico, tes_deterministico, fila_finita)
     global p_classe_TEC, classes_TEC 
     global p_classe_TES, classes_TES 
 
-    if(tec_deterministico):
+    if(not tec_deterministico):
         amostras_TEC = gera_amostras_exponencial(N_AMOSTRAS, TEMPO_ENTRE_CHEGADA)
         p_classe_TEC, classes_TEC = gera_funcao_distribuicao_acumulada(amostras_TEC, N_CLASSES)
 
-    if(tes_deterministico):
+    if(not tes_deterministico):
         amostras_TES = gera_amostras_exponencial(N_AMOSTRAS, TEMPO_ENTRE_SERVICO)
         p_classe_TES, classes_TES = gera_funcao_distribuicao_acumulada(amostras_TES, N_CLASSES)
 
-    TR, ES, TF, HC, HS  = 0, 0, 0, 0, sys.maxint
-    tes, tec = 0, 0, 0
+    
+    TR, ES, TF, HC, HS  = 0, 0, 0, 0, 99999
+    cliente_saindo = 0
+    clientes = 0
 
     interacoes = 0
     sum_entidade_fila = 0
-    tempo_ocupado = 0
-    tes = 0
+
+    tempo_fila, tempo_ocupado, tempo_sistema = 0, 0, 0
+    tr_anterior, tf_anterior, es_anterior = 0, 0, 0
+
+
+    print("\n\nEvento", "Cliente", "TR", "ES", "TF", "HC", "HS")
+    print("Inicio", "-", TR, ES, TF, HC, HS)
     while(TR < tempo_maximo):
         if HC < HS: # Evento de chagada
-            TR = HC
-            if ES == 0:
-                ES = 1
-                tes = proximo_TES(tes_deterministico)
-                HS = TR + tes
-            else:
-                TF += 1
-            # (fila_finita and fila < TAMANHO_MAX_FILA or not fila_finita)
-            HC = TR + proximo_TEC(tes_deterministico)
+            if not fila_finita or (fila_finita and TF < TAMANHO_MAX_FILA):
+                clientes += 1
+                print("Chegada", clientes, TR, ES, TF, HC, HS)
+                
+                TR = HC
+                if ES == 0:
+                    ES = 1
+                    HS = TR + proximo_TES(tes_deterministico)
+                else:
+                    TF += 1
+                HC = TR + proximo_TEC(tes_deterministico)
 
-        else: # Evento de Saida  
+
+        else: # Evento de Saida 
+            cliente_saindo += 1
+            print("Saida", cliente_saindo, TR, ES, TF, HC, HS)
+            
             TR = HS
             if TF > 0:
                 TF -= 1
-                tes = proximo_TES(tes_deterministico)
-                HS = TR + tes
+                HS = TR + proximo_TES(tes_deterministico)
             else:
                 ES = 0
-                HS = sys.maxint
+                HS = 99999
+
 
         # atualiza estatistica
         interacoes += 1
         sum_entidade_fila += TF # Número Médio de Entidades nas Filas
         if ES == 1:
-            tempo_ocupado += tes    # Taxa Média de Ocupação dos Servidores
-        
+            tempo_ocupado += (TR - tr_anterior)   # Taxa Média de Ocupação dos Servidores
+        tempo_fila += (TR - tr_anterior)*tf_anterior
+        tempo_sistema += (TR - tr_anterior)*(tf_anterior + es_anterior)
 
-        
-        
+        tr_anterior = TR
+        tf_anterior = TF
+        es_anterior = ES
 
+    a = sum_entidade_fila / interacoes
+    b = tempo_ocupado / TR
+    c = tempo_fila / clientes
+    d = tempo_sistema / clientes
 
+    print("\n\nNúmero Médio de Entidades nas Filas: ", a)
+    print("Taxa Média de Ocupação dos Servidores: ", b)
+    print("Tempo Médio de uma Entidade na Fila: ", c)
+    print("Tempo Médio no Sistema: ", d)
 
+def main():
+    global TEMPO_ENTRE_CHEGADA, TEMPO_ENTRE_SERVICO, TAMANHO_MAX_FILA
     
+    continuar = True
+    while(continuar):
+        tec_deterministico = input("TEC é deterministico (S/N)? ") in ("S", "s")
+        if tec_deterministico :
+            TEMPO_ENTRE_CHEGADA = int(input("Insira o valor de TEC: "))
 
+        tes_deterministico = input("TES é deterministico (S/N)? ") in ("S", "s")
+        if tes_deterministico :
+            TEMPO_ENTRE_SERVICO = int(input("Insira o valor de TES: "))
 
-'''
-    - Gerar valores aleatorio [x]
-    - Calcular o Tempo entre chegadas [x]
-        - Deterministico: C
-        - Aleatorio:  
+        fila_finita = input("Fila é finita (S/N)? ") in ("S", "s")
+        if fila_finita:
+            TAMANHO_MAX_FILA = int(input("Tamanho máximo da fila: "))
 
-'''
+        simulacao(100, tec_deterministico, tes_deterministico, fila_finita)
+
+        continuar = input("\n\nDeseja continuar com outra simulacao? ") in ("S", "s")
+
+main()
