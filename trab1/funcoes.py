@@ -91,22 +91,20 @@ def simulacao(tempo_maximo, tec_deterministico, tes_deterministico, fila_finita)
     print("Inicio", "-", TR, ES, TF, HC, HS)
     while(TR < tempo_maximo):
         if HC < HS: # Evento de chagada
+            TR = HC
             if not fila_finita or (fila_finita and TF < TAMANHO_MAX_FILA):
                 clientes += 1
-                print("Chegada", clientes, TR, ES, TF, HC, HS)
-                
-                TR = HC
+                print("Chegada", clientes, tr_anterior, ES, TF, HC, HS)
                 if ES == 0:
                     ES = 1
                     HS = TR + proximo_TES(tes_deterministico)
                 else:
                     TF += 1
-                HC = TR + proximo_TEC(tes_deterministico)
-
+            HC = TR + proximo_TEC(tes_deterministico)
 
         else: # Evento de Saida 
             cliente_saindo += 1
-            print("Saida", cliente_saindo, TR, ES, TF, HC, HS)
+            print("Saida", cliente_saindo, tr_anterior, ES, TF, HC, HS)
             
             TR = HS
             if TF > 0:
@@ -144,13 +142,24 @@ def main():
     
     continuar = True
     while(continuar):
-        tec_deterministico = input("TEC é deterministico (S/N)? ") in ("S", "s")
-        if tec_deterministico :
-            TEMPO_ENTRE_CHEGADA = int(input("Insira o valor de TEC: "))
+        flag = True
+        while(flag) :
+            tec_deterministico = input("TEC é deterministico (S/N)? ") in ("S", "s")
+            if tec_deterministico :
+                TEMPO_ENTRE_CHEGADA = int(input("Insira o valor de TEC: "))
+            else :
+                TEMPO_ENTRE_CHEGADA = int(input("Defina o valor de lambda para TEC: "))
 
-        tes_deterministico = input("TES é deterministico (S/N)? ") in ("S", "s")
-        if tes_deterministico :
-            TEMPO_ENTRE_SERVICO = int(input("Insira o valor de TES: "))
+            tes_deterministico = input("TES é deterministico (S/N)? ") in ("S", "s")
+            if tes_deterministico :
+                TEMPO_ENTRE_SERVICO = int(input("Insira o valor de TES: "))
+            else :
+                TEMPO_ENTRE_SERVICO = int(input("Defina o valor de lambda para TES: "))
+            
+            if(TEMPO_ENTRE_CHEGADA < TEMPO_ENTRE_SERVICO):
+                flag = False
+            else:
+                print("É necessário que o valor TEC seja MENOR que o valor TES (estado estacionário)")
 
         fila_finita = input("Fila é finita (S/N)? ") in ("S", "s")
         if fila_finita:
@@ -158,6 +167,6 @@ def main():
 
         simulacao(100, tec_deterministico, tes_deterministico, fila_finita)
 
-        continuar = input("\n\nDeseja continuar com outra simulacao? ") in ("S", "s")
+        continuar = input("\n\nDeseja continuar com outra simulacao(S/N)? ") in ("S", "s")
 
 main()
